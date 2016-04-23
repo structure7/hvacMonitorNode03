@@ -29,7 +29,7 @@ void setup()
   sensors.setResolution(ds18b20lk, 10);
 
   timer.setInterval(2000L, sendTemps); // Temperature sensor polling interval
-  timer.setInterval(5000L, sendHeartbeat); // Temperature sensor polling interval
+  timer.setInterval(5000L, sendHeartbeat);
 }
 
 void sendTemps()
