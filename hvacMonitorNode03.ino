@@ -4,7 +4,7 @@
 #include <BlynkSimpleEsp8266.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <TimeLib.h>
+#include <TimeLib.h>  // Remove?
 #define ONE_WIRE_BUS 2
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -36,7 +36,7 @@ void sendTemps()
 {
   sensors.requestTemperatures(); // Polls the sensors
 
-  float tempLK = sensors.getTempF(ds18b20lk); // Gets first probe on wire in lieu of by address
+  float tempLK = sensors.getTempF(ds18b20lk);
 
   if (tempLK > 0)
   {
