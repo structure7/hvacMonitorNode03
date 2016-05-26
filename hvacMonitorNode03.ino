@@ -92,7 +92,7 @@ void sendTemps()
 {
   sensors.requestTemperatures(); // Polls the sensors
 
-  tempLK = sensors.getTempF(ds18b20lk); // Gets first probe on wire in lieu of by address
+  tempLK = sensors.getTempF(ds18b20lk);
 
   if (tempLK > 0)
   {
