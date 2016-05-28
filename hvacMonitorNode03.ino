@@ -20,6 +20,7 @@ char auth[] = "fromBlynkApp";
 SimpleTimer timer;
 
 WidgetLED led1(V9); // Heartbeat LED
+WidgetTerminal terminal(V26);
 
 void setup()
 {
@@ -35,6 +36,25 @@ void setup()
   timer.setInterval(5000L, heartbeatOn);
 
   // CODE HERE TO SYNC BACK FROM APP SELECTION?
+}
+
+BLYNK_WRITE(V27) // App button to report uptime
+{
+  int pinData = param.asInt();
+
+  if (pinData == 0)
+  {
+  timer.setTimeout(6000L, uptimeSend);
+  }
+}
+
+void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
+{
+  float secDur = millis() / 1000;
+  float minDur = secDur / 60;
+  float hourDur = minDur / 60;
+  terminal.println(String("Node03 (LK) uptime: ") + hourDur + " hours ");
+  terminal.flush();
 }
 
 void heartbeatOn()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
@@ -92,7 +112,7 @@ void sendTemps()
 {
   sensors.requestTemperatures(); // Polls the sensors
 
-  tempLK = sensors.getTempF(ds18b20lk);
+  tempLK = sensors.getTempF(ds18b20lk); // Gets first probe on wire in lieu of by address
 
   if (tempLK > 0)
   {
