@@ -1,7 +1,7 @@
 # hvacMonitorNode03 (LK)
 <p align="center"><img src="http://i.imgur.com/HN5hxAj.jpg"/></p>
-The red and white wire is my 5VDC coming in from a wall wart. The blue CAT5E is going to my DS18B20.
-<br><br>
+<br>
+The red and white wire is my 5VDC coming in from a wall wart. The blue CAT5E is going to my DS18B20 (brown = GND, orange = signal, green = Vcc). 
 <p align="center"><img src="http://i.imgur.com/zfUYS3T.jpg"/></p>
 <br>
 ## Libraries and Resources
