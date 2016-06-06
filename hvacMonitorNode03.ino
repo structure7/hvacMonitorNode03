@@ -4,7 +4,6 @@
 #include <BlynkSimpleEsp8266.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <TimeLib.h>
 #define ONE_WIRE_BUS 2
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -33,9 +32,8 @@ void setup()
   sensors.setResolution(ds18b20lk, 10);
 
   timer.setInterval(2000L, sendTemps); // Temperature sensor polling interval
-  timer.setInterval(5000L, heartbeatOn);
 
-  // CODE HERE TO SYNC BACK FROM APP SELECTION?
+  heartbeatOn();
 }
 
 BLYNK_WRITE(V27) // App button to report uptime
@@ -44,7 +42,7 @@ BLYNK_WRITE(V27) // App button to report uptime
 
   if (pinData == 0)
   {
-  timer.setTimeout(6000L, uptimeSend);
+    timer.setTimeout(6000L, uptimeSend);
   }
 }
 
@@ -53,7 +51,7 @@ void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is l
   float secDur = millis() / 1000;
   float minDur = secDur / 60;
   float hourDur = minDur / 60;
-  terminal.println(String("Node03 (LK) uptime: ") + hourDur + " hours ");
+  terminal.println(String("Node03 (LK): ") + hourDur + " hours ");
   terminal.flush();
 }
 
@@ -66,6 +64,7 @@ void heartbeatOn()  // Blinks a virtual LED in the Blynk app to show the ESP is 
 void heartbeatOff()
 {
   led1.off();  // The OFF portion of the LED heartbeat indicator in the Blynk app
+  timer.setTimeout(2500L, heartbeatOn);
 }
 
 // Input from Blynk app menu to select room temperature that triggers alarm
@@ -106,13 +105,14 @@ void notifyAndOff()
 {
   Blynk.notify(String("LK's room is ") + tempLK + "°F. Alarm disabled until reset."); // Send notification.
   Blynk.virtualWrite(V21, 1); // Rather than fancy timing, just disable alarm until reset.
+  tempLKhighAlarm = 200;
 }
 
 void sendTemps()
 {
   sensors.requestTemperatures(); // Polls the sensors
 
-  tempLK = sensors.getTempF(ds18b20lk); // Gets first probe on wire in lieu of by address
+  tempLK = sensors.getTempF(ds18b20lk);
 
   if (tempLK > 0)
   {
