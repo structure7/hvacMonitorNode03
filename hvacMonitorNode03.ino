@@ -5,19 +5,15 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #define ONE_WIRE_BUS 2
-
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
-DeviceAddress ds18b20lk = { 0x28, 0xEE, 0x27, 0x16, 0x01, 0x16, 0x02, 0xED }; // LK
-
 float tempLK; // Room temp
 int tempLKhighAlarm = 200;
-
+bool isFirstConnect = true;
 char auth[] = "fromBlynkApp";
 
 SimpleTimer timer;
-
 WidgetLED led1(V9); // Heartbeat LED
 WidgetTerminal terminal(V26);
 
@@ -28,12 +24,28 @@ void setup()
 
   WiFi.softAPdisconnect(true); // Per https://github.com/esp8266/Arduino/issues/676 this turns off AP
 
+  while (Blynk.connect() == false) {
+    // Wait until connected
+  }
+
   sensors.begin();
-  sensors.setResolution(ds18b20lk, 10);
+  sensors.setResolution(10);
 
   timer.setInterval(2000L, sendTemps); // Temperature sensor polling interval
 
   heartbeatOn();
+}
+
+void loop()
+{
+  Blynk.run();
+  timer.run();
+}
+
+BLYNK_CONNECTED() {
+  if (isFirstConnect) {
+    Blynk.syncAll();
+  }
 }
 
 BLYNK_WRITE(V27) // App button to report uptime
@@ -42,16 +54,23 @@ BLYNK_WRITE(V27) // App button to report uptime
 
   if (pinData == 0)
   {
-    timer.setTimeout(6000L, uptimeSend);
+    timer.setTimeout(9000L, uptimeSend);
   }
 }
 
 void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
 {
-  float secDur = millis() / 1000;
-  float minDur = secDur / 60;
-  float hourDur = minDur / 60;
-  terminal.println(String("Node03 (LK): ") + hourDur + " hours ");
+  long minDur = millis() / 60000L;
+  long hourDur = millis() / 3600000L;
+  if (minDur < 121)
+  {
+    terminal.println(String("Node03 (LK): ") + minDur + " mins ");
+  }
+  else if (minDur > 120)
+  {
+    terminal.println(String("Node03 (LK): ") + hourDur + " hours ");
+  }
+
   terminal.flush();
 }
 
@@ -73,6 +92,7 @@ BLYNK_WRITE(V21) {
   {
     case 1: { // Alarm Off
         tempLKhighAlarm = 200;
+        //Serial.println("Case 1 set: Alarm off");
         break;
       }
     case 2: { // 80F Alarm
@@ -85,6 +105,7 @@ BLYNK_WRITE(V21) {
       }
     case 4: { // 82F Alarm;
         tempLKhighAlarm = 82;
+        //Serial.println("Case 4 set: 82F");
         break;
       }
     case 5: { // 83F Alarm
@@ -103,16 +124,14 @@ BLYNK_WRITE(V21) {
 
 void notifyAndOff()
 {
-  Blynk.notify(String("LK's room is ") + tempLK + "°F. Alarm disabled until reset."); // Send notification.
-  Blynk.virtualWrite(V21, 1); // Rather than fancy timing, just disable alarm until reset.
-  tempLKhighAlarm = 200;
+  Blynk.notify(String("Liv's room is ") + tempLK + "°F. Alarm disabled until reset."); // Send notification.
 }
 
 void sendTemps()
 {
   sensors.requestTemperatures(); // Polls the sensors
 
-  tempLK = sensors.getTempF(ds18b20lk);
+  tempLK = sensors.getTempFByIndex(0);
 
   if (tempLK > 0)
   {
@@ -126,11 +145,7 @@ void sendTemps()
   if (tempLK >= tempLKhighAlarm)
   {
     notifyAndOff();
+    Blynk.virtualWrite(V21, 1); // Rather than fancy timing, just disable alarm until reset.
+    tempLKhighAlarm = 200;
   }
-}
-
-void loop()
-{
-  Blynk.run();
-  timer.run();
 }
