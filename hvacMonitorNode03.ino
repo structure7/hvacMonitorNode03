@@ -8,6 +8,10 @@
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
+#include <ESP8266mDNS.h>        // Required for OTA
+#include <WiFiUdp.h>            // Required for OTA
+#include <ArduinoOTA.h>         // Required for OTA
+
 float tempLK; // Room temp
 int tempLKhighAlarm = 200;
 bool isFirstConnect = true;
@@ -31,6 +35,34 @@ void setup()
   sensors.begin();
   sensors.setResolution(10);
 
+  // START OTA ROUTINE
+  ArduinoOTA.setHostname("esp8266-Node03");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("MAC address: ");
+  Serial.println(WiFi.macAddress());
+  // END OTA ROUTINE
+
   timer.setInterval(2000L, sendTemps); // Temperature sensor polling interval
 
   heartbeatOn();
@@ -40,6 +72,7 @@ void loop()
 {
   Blynk.run();
   timer.run();
+  ArduinoOTA.handle();
 }
 
 BLYNK_CONNECTED() {
@@ -64,11 +97,13 @@ void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is l
   long hourDur = millis() / 3600000L;
   if (minDur < 121)
   {
-    terminal.println(String("Node03 (LK): ") + minDur + " mins ");
+    terminal.print(String("Node03 (LK): ") + minDur + " mins @ ");
+    terminal.println(WiFi.localIP());
   }
   else if (minDur > 120)
   {
-    terminal.println(String("Node03 (LK): ") + hourDur + " hours ");
+    terminal.print(String("Node03 (LK): ") + hourDur + " hrs @ ");
+    terminal.println(WiFi.localIP());
   }
 
   terminal.flush();
