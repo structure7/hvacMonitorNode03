@@ -8,23 +8,37 @@
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
+#include <TimeLib.h>            // Used by WidgetRTC.h
+#include <WidgetRTC.h>          // Blynk's RTC
+
 #include <ESP8266mDNS.h>        // Required for OTA
 #include <WiFiUdp.h>            // Required for OTA
 #include <ArduinoOTA.h>         // Required for OTA
 
-float tempLK; // Room temp
+float tempLK;                   // Room temp
 int tempLKhighAlarm = 200;
 bool isFirstConnect = true;
+
+int yMonth, yDate, yYear;
+bool tweetStartedFlag;
+int getWait = 3000;             // Duration to wait between vPin syncs from Blynk
+int tempAtticHigh, tempHouseHigh, tempHouseLow, tempOutsideHigh, tempOutsideLow;
+String runtimeTotal;
+
 char auth[] = "fromBlynkApp";
 
+const char* ssid = "ssid";
+const char* pw = "pw";
+
 SimpleTimer timer;
-WidgetLED led1(V9); // Heartbeat LED
 WidgetTerminal terminal(V26);
+WidgetRTC rtc;
+BLYNK_ATTACH_WIDGET(rtc, V8);
 
 void setup()
 {
   Serial.begin(9600);
-  Blynk.begin(auth, "ssid", "pw");
+  Blynk.begin(auth, ssid, pw);
 
   WiFi.softAPdisconnect(true); // Per https://github.com/esp8266/Arduino/issues/676 this turns off AP
 
@@ -36,7 +50,7 @@ void setup()
   sensors.setResolution(10);
 
   // START OTA ROUTINE
-  ArduinoOTA.setHostname("esp8266-Node03");
+  ArduinoOTA.setHostname("esp8266-Node03LK");
 
   ArduinoOTA.onStart([]() {
     Serial.println("Start");
@@ -63,9 +77,10 @@ void setup()
   Serial.println(WiFi.macAddress());
   // END OTA ROUTINE
 
-  timer.setInterval(2000L, sendTemps); // Temperature sensor polling interval
+  rtc.begin();
 
-  heartbeatOn();
+  timer.setInterval(2000L, sendTemps);    // Temperature sensor polling interval
+  timer.setInterval(1000L, uptimeReport);
 }
 
 void loop()
@@ -73,6 +88,15 @@ void loop()
   Blynk.run();
   timer.run();
   ArduinoOTA.handle();
+
+  if (hour() == 23 && minute() == 59 && second() > 55 && tweetStartedFlag == 0)
+  {
+    yMonth = month();
+    yDate = day();
+    yYear = year();
+    timer.setTimeout(1500L, tweetSync1);  // Kicks off the process ending with a Tweet just around midnight.
+    tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
+  }
 }
 
 BLYNK_CONNECTED() {
@@ -109,16 +133,11 @@ void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is l
   terminal.flush();
 }
 
-void heartbeatOn()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
-{
-  led1.on();
-  timer.setTimeout(2500L, heartbeatOff);
-}
-
-void heartbeatOff()
-{
-  led1.off();  // The OFF portion of the LED heartbeat indicator in the Blynk app
-  timer.setTimeout(2500L, heartbeatOn);
+void uptimeReport() {
+  if (second() > 3 && second() < 8)
+  {
+    Blynk.virtualWrite(103, minute());
+  }
 }
 
 // Input from Blynk app menu to select room temperature that triggers alarm
@@ -183,4 +202,73 @@ void sendTemps()
     Blynk.virtualWrite(V21, 1); // Rather than fancy timing, just disable alarm until reset.
     tempLKhighAlarm = 200;
   }
+}
+
+// START INFO GATHERING FOR TWEET
+
+void tweetSync1() {
+  Blynk.syncVirtual(V24);
+  timer.setTimeout(getWait, tweetSync2);
+}
+
+BLYNK_WRITE(V24) {
+  tempAtticHigh = param.asInt();
+}
+
+
+void tweetSync2() {
+  Blynk.syncVirtual(V22);
+  timer.setTimeout(getWait, tweetSync3);
+}
+
+BLYNK_WRITE(V22) {
+  tempHouseHigh = param.asInt();
+}
+
+
+void tweetSync3() {
+  Blynk.syncVirtual(V23);
+  timer.setTimeout(getWait, tweetSync4);
+}
+
+BLYNK_WRITE(V23) {
+  tempHouseLow = param.asInt();
+}
+
+
+void tweetSync4() {
+  Blynk.syncVirtual(V5);
+  timer.setTimeout(getWait, tweetSync5);
+}
+
+BLYNK_WRITE(V5) {
+  tempOutsideHigh = param.asInt();
+}
+
+
+void tweetSync5() {
+  Blynk.syncVirtual(V13);
+  timer.setTimeout(getWait, tweetSync6);
+}
+
+BLYNK_WRITE(V13) {
+  tempOutsideLow = param.asInt();
+}
+
+
+void tweetSync6() {
+  Blynk.syncVirtual(V15);
+  timer.setTimeout(2000, dailyTweet);
+}
+
+BLYNK_WRITE(V15) {
+  runtimeTotal = param.asString();
+}
+
+
+void dailyTweet()
+{
+    Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC ran for " + runtimeTotal + ".");
+    tweetStartedFlag = 0;         // Ready for the next tweet (at the next 11:59pm).
+    Serial.println("Tweet!");
 }
