@@ -1,3 +1,8 @@
+/* Node03 responsibilities:
+   - Tweet stats each night around midnight. Blynk data pulled in using Blynk.syncVirtual.
+   - Reports LK's bedroom temperature and alarm based on app-set high temp setpoint.
+*/
+
 #include <SimpleTimer.h>
 #define BLYNK_PRINT Serial    // Comment this out to disable prints and save space
 #include <ESP8266WiFi.h>
@@ -89,7 +94,7 @@ void loop()
   timer.run();
   ArduinoOTA.handle();
 
-  if (hour() == 23 && minute() == 59 && second() > 55 && tweetStartedFlag == 0)
+  if (hour() == 23 && minute() == 59 && second() >= 0 && tweetStartedFlag == 0)
   {
     yMonth = month();
     yDate = day();
@@ -112,6 +117,20 @@ BLYNK_WRITE(V27) // App button to report uptime
   if (pinData == 0)
   {
     timer.setTimeout(9000L, uptimeSend);
+  }
+}
+
+BLYNK_WRITE(V32) // Force Tweet for debugging
+{
+  int pinData = param.asInt();
+
+  if (pinData == 0)
+  {
+    yMonth = month();
+    yDate = day();
+    yYear = year();
+    timer.setTimeout(1500L, tweetSync1);  // Kicks off the process ending with a Tweet just around midnight.
+    tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
   }
 }
 
@@ -268,7 +287,13 @@ BLYNK_WRITE(V15) {
 
 void dailyTweet()
 {
+  if (runtimeTotal.length() > 10) {     // Differentiates between "None" and anything else reporting runtime and run qty.
     Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC ran for " + runtimeTotal + ".");
-    tweetStartedFlag = 0;         // Ready for the next tweet (at the next 11:59pm).
-    Serial.println("Tweet!");
+  }
+  else {
+    Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC did not run.");
+  }
+
+  tweetStartedFlag = 0;         // Ready for the next tweet (at the next 11:59pm).
+  Serial.println("Tweet!");
 }
