@@ -120,6 +120,7 @@ BLYNK_WRITE(V27) // App button to report uptime
   }
 }
 
+/*
 BLYNK_WRITE(V32) // Force Tweet for debugging
 {
   int pinData = param.asInt();
@@ -133,6 +134,7 @@ BLYNK_WRITE(V32) // Force Tweet for debugging
     tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
   }
 }
+*/
 
 void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
 {
