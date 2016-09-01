@@ -279,7 +279,7 @@ BLYNK_WRITE(V13) {
 
 void tweetSync6() {
   Blynk.syncVirtual(V15);
-  timer.setTimeout(2000, dailyTweet);
+  timer.setTimeout(60000, dailyTweet);
 }
 
 BLYNK_WRITE(V15) {
