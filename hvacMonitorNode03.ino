@@ -45,7 +45,7 @@ void setup()
   Serial.begin(9600);
   Blynk.begin(auth, ssid, pw);
 
-  WiFi.softAPdisconnect(true); // Per https://github.com/esp8266/Arduino/issues/676 this turns off AP
+  //WiFi.softAPdisconnect(true); // Per https://github.com/esp8266/Arduino/issues/676 this turns off AP
 
   while (Blynk.connect() == false) {
     // Wait until connected
@@ -86,6 +86,7 @@ void setup()
 
   timer.setInterval(2000L, sendTemps);    // Temperature sensor polling interval
   timer.setInterval(1000L, uptimeReport);
+  timer.setInterval(61221L, updateAppLabel);       // Update display property (app labels) where used.
 }
 
 void loop()
@@ -104,10 +105,9 @@ void loop()
   }
 }
 
-BLYNK_CONNECTED() {
-  if (isFirstConnect) {
-    Blynk.syncAll();
-  }
+void updateAppLabel()
+{
+  Blynk.setProperty(V6, "label", String("Liv (") + tempLKhighAlarm + "F)");
 }
 
 BLYNK_WRITE(V27) // App button to report uptime
@@ -121,8 +121,8 @@ BLYNK_WRITE(V27) // App button to report uptime
 }
 
 /*
-BLYNK_WRITE(V32) // Force Tweet for debugging
-{
+  BLYNK_WRITE(V32) // Force Tweet for debugging
+  {
   int pinData = param.asInt();
 
   if (pinData == 0)
@@ -133,10 +133,10 @@ BLYNK_WRITE(V32) // Force Tweet for debugging
     timer.setTimeout(1500L, tweetSync1);  // Kicks off the process ending with a Tweet just around midnight.
     tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
   }
-}
+  }
 */
 
-void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is live and reporting.
+void uptimeSend()
 {
   long minDur = millis() / 60000L;
   long hourDur = millis() / 3600000L;
@@ -154,7 +154,8 @@ void uptimeSend()  // Blinks a virtual LED in the Blynk app to show the ESP is l
   terminal.flush();
 }
 
-void uptimeReport() {
+void uptimeReport()
+{
   if (second() > 3 && second() < 8)
   {
     Blynk.virtualWrite(103, minute());
@@ -195,6 +196,8 @@ BLYNK_WRITE(V21) {
         Serial.println("Unknown item selected");
       }
   }
+  
+  Blynk.setProperty(V6, "label", String("Liv (") + tempLKhighAlarm + "F)");
 }
 
 void notifyAndOff()
@@ -215,6 +218,19 @@ void sendTemps()
   else
   {
     Blynk.virtualWrite(6, "ERR");
+  }
+
+  if (tempLK < 78)
+  {
+    Blynk.setProperty(V6, "color", "#04C0F8"); // Blue
+  }
+  else if (tempLK >= 78 && tempLK <= 80)
+  {
+    Blynk.setProperty(V6, "color", "#ED9D00"); // Yellow
+  }
+  else if (tempLK > 80)
+  {
+    Blynk.setProperty(V6, "color", "#D3435C"); // Red
   }
 
   if (tempLK >= tempLKhighAlarm)
