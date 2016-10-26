@@ -31,9 +31,8 @@ int tempAtticHigh, tempHouseHigh, tempHouseLow, tempOutsideHigh, tempOutsideLow;
 String runtimeTotal;
 
 char auth[] = "fromBlynkApp";
-
-const char* ssid = "ssid";
-const char* pw = "pw";
+char ssid[] = "ssid";
+char pass[] = "pw";
 
 SimpleTimer timer;
 WidgetTerminal terminal(V26);
@@ -43,7 +42,7 @@ BLYNK_ATTACH_WIDGET(rtc, V8);
 void setup()
 {
   Serial.begin(9600);
-  Blynk.begin(auth, ssid, pw);
+  Blynk.begin(auth, ssid, pass);
 
   //WiFi.softAPdisconnect(true); // Per https://github.com/esp8266/Arduino/issues/676 this turns off AP
 
@@ -87,6 +86,7 @@ void setup()
   timer.setInterval(2000L, sendTemps);    // Temperature sensor polling interval
   timer.setInterval(1000L, uptimeReport);
   timer.setInterval(61221L, updateAppLabel);       // Update display property (app labels) where used.
+  timer.setTimeout(1000, vsync1);             // Syncs back vPins to survive hardware reset.
 }
 
 void loop()
@@ -107,7 +107,12 @@ void loop()
 
 void updateAppLabel()
 {
-  Blynk.setProperty(V6, "label", String("Liv (") + tempLKhighAlarm + "F)");
+  Blynk.setProperty(V6, "label", String("Liv ▲") + tempLKhighAlarm + "°"); // ▲ entered using ALT-30, ° using ALT-248
+}
+
+void vsync1()
+{
+  Blynk.syncVirtual(V21);    // tempLKhighAlarm
 }
 
 BLYNK_WRITE(V27) // App button to report uptime
@@ -197,7 +202,7 @@ BLYNK_WRITE(V21) {
       }
   }
   
-  Blynk.setProperty(V6, "label", String("Liv (") + tempLKhighAlarm + "F)");
+  Blynk.setProperty(V6, "label", String("Liv ▲") + tempLKhighAlarm + "°");
 }
 
 void notifyAndOff()
