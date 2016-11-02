@@ -9,9 +9,6 @@
 #include <BlynkSimpleEsp8266.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#define ONE_WIRE_BUS 2
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
 
 #include <TimeLib.h>            // Used by WidgetRTC.h
 #include <WidgetRTC.h>          // Blynk's RTC
@@ -20,24 +17,33 @@ DallasTemperature sensors(&oneWire);
 #include <WiFiUdp.h>            // Required for OTA
 #include <ArduinoOTA.h>         // Required for OTA
 
-float tempLK;                   // Room temp
-int tempLKhighAlarm = 200;
-bool isFirstConnect = true;
-
-int yMonth, yDate, yYear;
-bool tweetStartedFlag;
-int getWait = 3000;             // Duration to wait between vPin syncs from Blynk
-int tempAtticHigh, tempHouseHigh, tempHouseLow, tempOutsideHigh, tempOutsideLow;
-String runtimeTotal;
+#define ONE_WIRE_BUS 2
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
 
 char auth[] = "fromBlynkApp";
 char ssid[] = "ssid";
 char pass[] = "pw";
 
 SimpleTimer timer;
+
 WidgetTerminal terminal(V26);
 WidgetRTC rtc;
 BLYNK_ATTACH_WIDGET(rtc, V8);
+
+int tempLK;                   // Room temp
+int tempLKhighAlarm = 200;    // Set high temp alarm very high as setpoint
+bool isFirstConnect = true;
+
+int yMonth, yDate, yYear;
+bool tweetStartedFlag;
+int getWait = 3000;           // Duration to wait between vPin syncs from Blynk
+int tempAtticHigh, tempHouseHigh, tempHouseLow, tempOutsideHigh, tempOutsideLow;
+String runtimeTotal;
+
+int last24high, last24low;    // Rolling high/low temps in last 24-hours.
+int last24hoursTemps[288];    // Last 24-hours temps recorded every 5 minutes.
+int arrayIndex = 0;
 
 void setup()
 {
@@ -49,9 +55,6 @@ void setup()
   while (Blynk.connect() == false) {
     // Wait until connected
   }
-
-  sensors.begin();
-  sensors.setResolution(10);
 
   // START OTA ROUTINE
   ArduinoOTA.setHostname("esp8266-Node03LK");
@@ -83,10 +86,14 @@ void setup()
 
   rtc.begin();
 
-  timer.setInterval(2000L, sendTemps);    // Temperature sensor polling interval
-  timer.setInterval(1000L, uptimeReport);
-  timer.setInterval(61221L, updateAppLabel);       // Update display property (app labels) where used.
-  timer.setTimeout(1000, vsync1);             // Syncs back vPins to survive hardware reset.
+  sensors.begin();
+  sensors.setResolution(10);
+
+  timer.setInterval(2000L, sendTemps);            // Temperature sensor polling interval
+  timer.setInterval(300000L, recordTempToArray);  // Array updated ~5 minutes
+  timer.setInterval(1000L, uptimeReport);         // Records current minute
+  timer.setTimeout(1000, vsync1);                 // Syncs back vPins to survive hardware reset.
+  timer.setTimeout(5000, setupArray);             // Sets entire array to temp at startup for a "baseline"
 }
 
 void loop()
@@ -103,11 +110,6 @@ void loop()
     timer.setTimeout(1500L, tweetSync1);  // Kicks off the process ending with a Tweet just around midnight.
     tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
   }
-}
-
-void updateAppLabel()
-{
-  Blynk.setProperty(V6, "label", String("Liv ▲") + tempLKhighAlarm + "°"); // ▲ entered using ALT-30, ° using ALT-248
 }
 
 void vsync1()
@@ -201,8 +203,6 @@ BLYNK_WRITE(V21) {
         Serial.println("Unknown item selected");
       }
   }
-  
-  Blynk.setProperty(V6, "label", String("Liv ▲") + tempLKhighAlarm + "°");
 }
 
 void notifyAndOff()
@@ -319,4 +319,49 @@ void dailyTweet()
 
   tweetStartedFlag = 0;         // Ready for the next tweet (at the next 11:59pm).
   Serial.println("Tweet!");
+}
+
+void setupArray()
+{
+  for (int i = 0; i < 289; i++)
+  {
+    last24hoursTemps[i] = tempLK;
+  }
+
+    Blynk.setProperty(V6, "label", "Liv");
+
+}
+
+void recordTempToArray()
+{
+
+  //Serial.print(String("[") + millis() + "] ");
+
+  if (arrayIndex < 289)                   // Mess with array size and timing to taste!
+  {
+    last24hoursTemps[arrayIndex] = tempLK;
+    ++arrayIndex;
+  }
+  else
+  {
+    arrayIndex = 0;
+  }
+
+  for (int i = 0; i < 289; i++)
+  {
+    if (last24hoursTemps[i] > last24high)
+    {
+      last24high = last24hoursTemps[i];
+    }
+
+    if (last24hoursTemps[i] < last24low)
+    {
+      last24low = last24hoursTemps[i];
+    }
+
+    //Serial.print(String("") + last24hoursTemps[i] + " ");
+  }
+
+  //Serial.println("");
+  Blynk.setProperty(V6, "label", String("Liv ") + last24high + "/" + last24low);  // Sets label with high/low temps.
 }
