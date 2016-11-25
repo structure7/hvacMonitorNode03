@@ -31,7 +31,8 @@ WidgetTerminal terminal(V26);
 WidgetRTC rtc;
 BLYNK_ATTACH_WIDGET(rtc, V8);
 
-int tempLK;                   // Room temp
+double tempLK;                // Room temp
+int tempLKint;                // Room temp converted to int
 int tempLKhighAlarm = 200;    // Set high temp alarm very high as setpoint
 bool isFirstConnect = true;
 
@@ -40,6 +41,9 @@ bool tweetStartedFlag;
 int getWait = 3000;           // Duration to wait between vPin syncs from Blynk
 int tempAtticHigh, tempHouseHigh, tempHouseLow, tempOutsideHigh, tempOutsideLow;
 String runtimeTotal;
+
+int dailyHigh = 0;
+int dailyLow = 200;
 
 int last24high, last24low;    // Rolling high/low temps in last 24-hours.
 int last24hoursTemps[288];    // Last 24-hours temps recorded every 5 minutes.
@@ -94,6 +98,8 @@ void setup()
   timer.setInterval(1000L, uptimeReport);         // Records current minute
   timer.setTimeout(1000, vsync1);                 // Syncs back vPins to survive hardware reset.
   timer.setTimeout(5000, setupArray);             // Sets entire array to temp at startup for a "baseline"
+  timer.setInterval(15000L, hiLoTemps);
+  timer.setInterval(30000L, resetHiLoTemps);
 }
 
 void loop()
@@ -110,6 +116,7 @@ void loop()
     timer.setTimeout(1500L, tweetSync1);  // Kicks off the process ending with a Tweet just around midnight.
     tweetStartedFlag = 1;                 // Makes sure this process starts only once at 11:59pm.
   }
+
 }
 
 void vsync1()
@@ -216,6 +223,19 @@ void sendTemps()
 
   tempLK = sensors.getTempFByIndex(0);
 
+  // Conversion of tempLK to tempLKint
+  int xLKint = (int) tempLK;
+  double xLK10ths = (tempLK - xLKint);
+  if (xLK10ths >= .50)
+  {
+    tempLKint = (xLKint + 1);
+  }
+  else
+  {
+    tempLKint = xLKint;
+  }
+
+  // Send temperature to the app display
   if (tempLK > 0)
   {
     Blynk.virtualWrite(6, tempLK);
@@ -225,6 +245,7 @@ void sendTemps()
     Blynk.virtualWrite(6, "ERR");
   }
 
+  // Set the app display color based on temperature
   if (tempLK < 78)
   {
     Blynk.setProperty(V6, "color", "#04C0F8"); // Blue
@@ -238,6 +259,7 @@ void sendTemps()
     Blynk.setProperty(V6, "color", "#D3435C"); // Red
   }
 
+  // Check if temperature is high enough to send alarm notification
   if (tempLK >= tempLKhighAlarm)
   {
     notifyAndOff();
@@ -307,6 +329,7 @@ BLYNK_WRITE(V15) {
   runtimeTotal = param.asString();
 }
 
+// STOPPED COLLECTING INFO FOR TWEET. Below sends tweet.
 
 void dailyTweet()
 {
@@ -325,10 +348,10 @@ void setupArray()
 {
   for (int i = 0; i < 289; i++)
   {
-    last24hoursTemps[i] = tempLK;
+    last24hoursTemps[i] = tempLKint;
   }
 
-    Blynk.setProperty(V6, "label", "Liv");
+  Blynk.setProperty(V6, "label", "Liv");
 
 }
 
@@ -339,7 +362,7 @@ void recordTempToArray()
 
   if (arrayIndex < 289)                   // Mess with array size and timing to taste!
   {
-    last24hoursTemps[arrayIndex] = tempLK;
+    last24hoursTemps[arrayIndex] = tempLKint;
     ++arrayIndex;
   }
   else
@@ -364,4 +387,42 @@ void recordTempToArray()
 
   //Serial.println("");
   Blynk.setProperty(V6, "label", String("Liv ") + last24high + "/" + last24low);  // Sets label with high/low temps.
+}
+
+BLYNK_WRITE(V19)
+{
+  int pinData = param.asInt();
+
+  if (pinData == 0)
+  {
+    Blynk.setProperty(V6, "label", String("Liv ") + last24high + "/" + last24low);
+  }
+
+  if (pinData == 1)
+  {
+    Blynk.setProperty(V6, "label", String("Liv ") + dailyHigh + "|" + dailyLow);
+  }
+}
+
+void resetHiLoTemps()
+{
+  // Daily at 00:01, yesterday's high/low temps are reset,
+  if (hour() == 00 && minute() == 01)
+  {
+    dailyHigh = 0;     // Resets daily high temp
+    dailyLow = 200;    // Resets daily low temp
+  }
+}
+
+void hiLoTemps()
+{
+  if (tempLKint > dailyHigh)
+  {
+    dailyHigh = tempLKint;
+  }
+
+  if (tempLKint < dailyLow)
+  {
+    dailyLow = tempLKint;
+  }
 }
