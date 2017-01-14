@@ -5,7 +5,6 @@
 
 #include <SimpleTimer.h>
 #define BLYNK_PRINT Serial    // Comment this out to disable prints and save space
-#include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -29,7 +28,6 @@ SimpleTimer timer;
 
 WidgetTerminal terminal(V26);
 WidgetRTC rtc;
-BLYNK_ATTACH_WIDGET(rtc, V8);
 
 double tempLK;                // Room temp
 int tempLKint;                // Room temp converted to int
@@ -48,6 +46,8 @@ int dailyLow = 200;
 int last24high, last24low;    // Rolling high/low temps in last 24-hours.
 int last24hoursTemps[288];    // Last 24-hours temps recorded every 5 minutes.
 int arrayIndex = 0;
+
+bool heatingMode;             // FALSE = Cooling. TRUE = Heating. Pulled from hvacMonitor for tweets.
 
 void setup()
 {
@@ -92,7 +92,7 @@ void setup()
 
   sensors.begin();
   sensors.setResolution(10);
-  
+
   timer.setTimeout(1000, vsync1);                 // Syncs back vPins to survive hardware reset.
   timer.setInterval(2000L, sendTemps);            // Temperature sensor polling interval
   timer.setInterval(1000L, uptimeReport);         // Records current minute
@@ -138,7 +138,7 @@ BLYNK_WRITE(V27) // App button to report uptime
 }
 
 /*
-  BLYNK_WRITE(V32) // Force Tweet for deb ugging
+  BLYNK_WRITE(V32) // Force Tweet for debugging
   {
   int pinData = param.asInt();
 
@@ -296,7 +296,7 @@ void tweetSync2() {
   Blynk.syncVirtual(V5);
   Blynk.syncVirtual(V13);
   Blynk.syncVirtual(V15);
-  timer.setTimeout(getWait, dailyTweet);
+  timer.setTimeout(getWait, tweetSync3);
 }
 
 BLYNK_WRITE(V5) {
@@ -311,12 +311,33 @@ BLYNK_WRITE(V15) {
   runtimeTotal = param.asString();
 }
 
+void tweetSync3() {
+  Blynk.syncVirtual(V38);
+  timer.setTimeout(getWait, dailyTweet);
+}
+
+BLYNK_WRITE(V38) {
+  String blah = param.asStr();
+
+  if (blah == "COOL")
+  {
+    heatingMode = FALSE;
+  }
+  else if (blah == "HEAT")
+  {
+    heatingMode = TRUE;
+  }
+}
+
 // STOPPED COLLECTING INFO FOR TWEET. Below sends tweet.
 
 void dailyTweet()
 {
-  if (runtimeTotal.length() > 10) {     // Differentiates between "None" and anything else reporting runtime and run qty.
-    Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC ran for " + runtimeTotal + ".");
+  if (runtimeTotal.length() > 10 && heatingMode == FALSE) {     // Differentiates between "None" and anything else reporting runtime and run qty.
+    Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC cooled for " + runtimeTotal + ".");
+  }
+  else if (runtimeTotal.length() > 10 && heatingMode == TRUE) {
+    Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC heated for " + runtimeTotal + ".");
   }
   else {
     Blynk.tweet(String("On ") + yMonth + "/" + yDate + "/" + yYear + ", House: " + tempHouseHigh + "/" + tempHouseLow + ", Outside: " + tempOutsideHigh + "/" + tempOutsideLow + ", Attic High: " + tempAtticHigh + ", and HVAC did not run.");
