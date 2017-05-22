@@ -28,6 +28,7 @@ SimpleTimer timer;
 
 WidgetTerminal terminal(V26);
 WidgetRTC rtc;
+WidgetBridge bridge1(V50);
 
 double tempLK;                // Room temp
 int tempLKint;                // Room temp converted to int
@@ -97,6 +98,7 @@ void setup()
   timer.setInterval(2000L, sendTemps);            // Temperature sensor polling interval
   timer.setInterval(1000L, uptimeReport);         // Records current minute
   timer.setTimeout(5000, setupArray);             // Sets entire array to temp at startup for a "baseline"
+  timer.setInterval(30000, sendControlTemp);      // Sends temp to hvacMonitor via bridge for control
   timer.setInterval(300000L, recordHighLowTemps);  // Array updated ~5 minutes
 }
 
@@ -135,6 +137,14 @@ BLYNK_WRITE(V27) // App button to report uptime
   {
     timer.setTimeout(9000L, uptimeSend);
   }
+}
+
+void sendControlTemp() {
+  bridge1.virtualWrite(V127, 3, tempLK);    // Writing "3" for this node, then the temp.
+}
+
+BLYNK_CONNECTED() {
+  bridge1.setAuthToken("ed06ade587fc4dfea91fb114e08f2104"); // Place the AuthToken of the second hardware here
 }
 
 /*
@@ -217,7 +227,9 @@ BLYNK_WRITE(V21) {
 
 void notifyAndOff()
 {
-  Blynk.notify(String("Liv's room is ") + tempLK + "°F. Alarm disabled until reset."); // Send notification.
+  Blynk.notify(String("Liv's room is ") + tempLK + "F. Alarm disabled until reset."); // Send notification.
+  Blynk.virtualWrite(V21, 1);    // Disable alarm until reset.
+  Blynk.syncVirtual(V21);
 }
 
 void sendTemps()
@@ -266,7 +278,6 @@ void sendTemps()
   if (tempLK >= tempLKhighAlarm)
   {
     notifyAndOff();
-    Blynk.virtualWrite(V21, 1); // Rather than fancy timing, just disable alarm until reset.
     tempLKhighAlarm = 200;
   }
 }
@@ -401,21 +412,6 @@ void recordHighLowTemps()
   }
 
   Blynk.setProperty(V6, "label", String("Liv ") + last24high + "/" + last24low);  // Sets label with high/low temps.
-}
-
-BLYNK_WRITE(V19)
-{
-  int pinData = param.asInt();
-
-  if (pinData == 0)
-  {
-    Blynk.setProperty(V6, "label", String("Liv ") + last24high + "/" + last24low);
-  }
-
-  if (pinData == 1)
-  {
-    Blynk.setProperty(V6, "label", String("Liv ") + dailyHigh + "|" + dailyLow);
-  }
 }
 
 void resetHiLoTemps()
