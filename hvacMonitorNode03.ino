@@ -144,7 +144,7 @@ void sendControlTemp() {
 }
 
 BLYNK_CONNECTED() {
-  bridge1.setAuthToken("ed06ade587fc4dfea91fb114e08f2104"); // Place the AuthToken of the second hardware here
+  bridge1.setAuthToken(auth); // Place the AuthToken of the second hardware here
 }
 
 /*
